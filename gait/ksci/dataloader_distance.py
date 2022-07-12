@@ -28,6 +28,19 @@ class Gait_Dataset_Salted(Dataset):
     
     def __getitem__(self, idx):
         return self.inputs_acc[idx], self.inputs_gyr[idx], self.stride_length[idx], self.inputs_pst[idx]
+    
+    
+class Gait_Dataset_Axis_Salted(Dataset):
+    def __init__(self, file_path, axis=None):
+        self.file_path = file_path
+        self.inputs_x, self.inputs_y, self.inputs_z, self.stride_length = get_axis_sensor_salted(file_path)
+        self.inputs_pst = get_position_salted(file_path, distance=True)
+        
+    def __len__(self) :
+        return len(self.stride_length)
+    
+    def __getitem__(self, idx):
+        return self.inputs_x[idx], self.inputs_y[idx], self.inputs_z[idx], self.stride_length[idx], self.inputs_pst[idx]
 
 
 
@@ -104,6 +117,57 @@ def get_sensor_salted(file_path, normalization=True):
     
     return inputs_acc, inputs_gyr, stride_length
 
+def get_axis_sensor_salted(file_path, normalization=True):
+    inputs_x = []
+    inputs_y = []
+    inputs_z = []
+    stride_length = []
+    for file_name in glob.glob(file_path):
+        df = pd.read_csv(file_name, skiprows=2)
+        acc = df.filter(regex="R_ACC")
+        gyr = df.filter(regex="R_GYRO")
+        event_idx = get_event_salted(file_name)
+
+        # HS 이벤트 추출
+        event_hs = event_idx[0::2]
+
+        # m/s^2 단위 변환
+        acc = (acc / 1000) * 9.8066
+    #     acc_z = acc_z - np.mean(acc_z) # z축(상하)에 적용되는 중력가속도 제거 : 추가확인 필요
+
+        # Normalization
+        if normalization == True:
+            scaler = MinMaxScaler()
+            acc_norm = scaler.fit_transform(acc)
+            gyr_norm = scaler.fit_transform(gyr)
+
+            
+        # 가속도와 자이로 센서 값
+        for i in range(1, len(event_hs)):
+            if normalization == True:
+                inputs_x.append(np.vstack([np.transpose(cv2.resize(acc_norm[:, 0][event_hs[i-1]:event_hs[i]], dsize=(1, 300))), 
+                                           np.transpose(cv2.resize(gyr_norm[:, 0][event_hs[i-1]:event_hs[i]], dsize=(1, 300)))]))
+                inputs_y.append(np.vstack([np.transpose(cv2.resize(acc_norm[:, 1][event_hs[i-1]:event_hs[i]], dsize=(1, 300))), 
+                                           np.transpose(cv2.resize(gyr_norm[:, 1][event_hs[i-1]:event_hs[i]], dsize=(1, 300)))]))
+                inputs_z.append(np.vstack([np.transpose(cv2.resize(acc_norm[:, 2][event_hs[i-1]:event_hs[i]], dsize=(1, 300))), 
+                                           np.transpose(cv2.resize(gyr_norm[:, 2][event_hs[i-1]:event_hs[i]], dsize=(1, 300)))]))
+            else:
+                inputs_acc.append(np.transpose(acc[event_hs[i-1]:event_hs[i]]))
+                inputs_gyr.append(np.transpose(gyr[event_hs[i-1]:event_hs[i]]))
+
+    
+        if '3km' in file_name:
+            stride_length.append(np.diff(event_hs) * (3000/3600))
+        elif '4km' in file_name:
+            stride_length.append(np.diff(event_hs) * (4000/3600))
+        else:
+            stride_length.append(np.diff(event_hs) * (5000/3600))
+            
+    stride_length = np.round(np.array(list(itertools.chain.from_iterable(stride_length))), 3)
+    
+    return inputs_x, inputs_y, inputs_z, stride_length
+
+
 
 def get_speed_salted(file_path):
     inputs_acc, _, _ = get_sensor_salted(file_path, normalization=False)
@@ -121,4 +185,9 @@ def get_position_salted(file_path, distance=False):
         if distance==True:
             pst = np.array(np.sum(pst, axis=1))
         inputs_pst.append(pst)
+    
+    scaler = MinMaxScaler()
+    inputs_pst = scaler.fit_transform(inputs_pst)
+
+        
     return inputs_pst

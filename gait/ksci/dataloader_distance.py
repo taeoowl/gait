@@ -87,8 +87,11 @@ def get_sensor_salted(file_path, normalization=True):
 
         # m/s^2 단위 변환
         acc = (acc / 1000) * 9.8066
-    #     acc_z = acc_z - np.mean(acc_z) # z축(상하)에 적용되는 중력가속도 제거 : 추가확인 필요
-
+        
+        # x축과 z축에 적용되는 bias 제거(z축의 경우 중력가속도)
+        acc['R_ACC_X']= acc['R_ACC_X'] - np.mean(acc['R_ACC_X'])
+        acc['R_ACC_Z']= acc['R_ACC_Z'] - np.mean(acc['R_ACC_Z']) 
+        
         # Normalization
         if normalization == True:
             scaler = MinMaxScaler()
@@ -133,7 +136,10 @@ def get_axis_sensor_salted(file_path, normalization=True):
 
         # m/s^2 단위 변환
         acc = (acc / 1000) * 9.8066
-    #     acc_z = acc_z - np.mean(acc_z) # z축(상하)에 적용되는 중력가속도 제거 : 추가확인 필요
+        
+        # x축과 z축에 적용되는 bias 제거(z축의 경우 중력가속도)
+        acc['R_ACC_X']= acc['R_ACC_X'] - np.mean(acc['R_ACC_X'])
+        acc['R_ACC_Z']= acc['R_ACC_Z'] - np.mean(acc['R_ACC_Z']) 
 
         # Normalization
         if normalization == True:

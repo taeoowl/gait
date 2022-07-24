@@ -17,17 +17,19 @@ import itertools
 
 
 class Gait_Dataset_Salted(Dataset):
-    def __init__(self, file_path):
+    def __init__(self, file_path, bias=False):
+        self.bias = bias
         self.file_path = file_path
-        self.inputs_acc, self.inputs_gyr, self.stride_length = get_sensor_salted(file_path)
+        self.inputs_acc, self.inputs_gyr, self.stride_length = get_sensor_salted(file_path, bias=bias)
 #         self.inputs_spd = get_speed_salted(file_path)
-        self.inputs_pst = get_position_salted(file_path, distance=True)
+        self.inputs_pst = get_position_salted(file_path, distance=True, bias=bias)
+        self.inputs_var = get_variance_salted(file_path)
         
     def __len__(self) :
         return len(self.inputs_acc)
     
     def __getitem__(self, idx):
-        return self.inputs_acc[idx], self.inputs_gyr[idx], self.stride_length[idx], self.inputs_pst[idx]
+        return self.inputs_acc[idx], self.inputs_gyr[idx], self.stride_length[idx], self.inputs_pst[idx], self.inputs_var[idx]
     
     
 class Gait_Dataset_Axis_Salted(Dataset):
@@ -72,7 +74,7 @@ def get_event_salted(file_path):
     
     return event_idx
 
-def get_sensor_salted(file_path, normalization=True):
+def get_sensor_salted(file_path, normalization=True, bias=False):
     inputs_acc = []
     inputs_gyr = []
     stride_length = []
@@ -89,8 +91,9 @@ def get_sensor_salted(file_path, normalization=True):
         acc = (acc / 1000) * 9.8066
         
         # x축과 z축에 적용되는 bias 제거(z축의 경우 중력가속도)
-        acc['R_ACC_X']= acc['R_ACC_X'] - np.mean(acc['R_ACC_X'])
-        acc['R_ACC_Z']= acc['R_ACC_Z'] - np.mean(acc['R_ACC_Z']) 
+        if bias == False:
+            acc['R_ACC_X']= acc['R_ACC_X'] - np.mean(acc['R_ACC_X'])
+            acc['R_ACC_Z']= acc['R_ACC_Z'] - np.mean(acc['R_ACC_Z']) 
         
         # Normalization
         if normalization == True:
@@ -120,7 +123,7 @@ def get_sensor_salted(file_path, normalization=True):
     
     return inputs_acc, inputs_gyr, stride_length
 
-def get_axis_sensor_salted(file_path, normalization=True):
+def get_axis_sensor_salted(file_path, normalization=True, bias=False):
     inputs_x = []
     inputs_y = []
     inputs_z = []
@@ -138,8 +141,9 @@ def get_axis_sensor_salted(file_path, normalization=True):
         acc = (acc / 1000) * 9.8066
         
         # x축과 z축에 적용되는 bias 제거(z축의 경우 중력가속도)
-        acc['R_ACC_X']= acc['R_ACC_X'] - np.mean(acc['R_ACC_X'])
-        acc['R_ACC_Z']= acc['R_ACC_Z'] - np.mean(acc['R_ACC_Z']) 
+        if bias == False:
+            acc['R_ACC_X']= acc['R_ACC_X'] - np.mean(acc['R_ACC_X'])
+            acc['R_ACC_Z']= acc['R_ACC_Z'] - np.mean(acc['R_ACC_Z']) 
 
         # Normalization
         if normalization == True:
@@ -175,16 +179,18 @@ def get_axis_sensor_salted(file_path, normalization=True):
 
 
 
-def get_speed_salted(file_path):
-    inputs_acc, _, _ = get_sensor_salted(file_path, normalization=False)
+def get_speed_salted(file_path, bias=False):
+    bias = bias
+    inputs_acc, _, _ = get_sensor_salted(file_path, normalization=False, bias=bias)
     inputs_spd = []
     for i in range(len(inputs_acc)):
         spd = pd.DataFrame(scipy.integrate.cumulative_trapezoid(inputs_acc[i], dx=(1/100)))
         inputs_spd.append(spd) #m/s
     return inputs_spd
 
-def get_position_salted(file_path, distance=False):
-    inputs_spd = get_speed_salted(file_path)
+def get_position_salted(file_path, distance=False, bias=False):
+    bias = bias
+    inputs_spd = get_speed_salted(file_path, bias = bias)
     inputs_pst = []
     for i in range(len(inputs_spd)):
         pst = pd.DataFrame(scipy.integrate.cumulative_trapezoid(inputs_spd[i], dx=(1/100)))
@@ -197,3 +203,16 @@ def get_position_salted(file_path, distance=False):
 
         
     return inputs_pst
+
+
+def get_variance_salted(file_path):
+    inputs_acc, _, _ = get_sensor_salted(file_path, normalization=False)
+    inputs_var = []
+    for i in range(len(inputs_acc)):
+        var = np.var(inputs_acc[i], axis=1)
+        inputs_var.append(var)
+        
+    scaler = MinMaxScaler()
+    inputs_var = scaler.fit_transform(inputs_var)
+        
+    return inputs_var

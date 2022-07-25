@@ -89,6 +89,7 @@ def get_sensor_salted(file_path, normalization=True, bias=False):
 
         # m/s^2 단위 변환
         acc = (acc / 1000) * 9.8066
+        gyr = gyr / 10
         
         # x축과 z축에 적용되는 bias 제거(z축의 경우 중력가속도)
         if bias == False:
@@ -209,10 +210,10 @@ def get_variance_salted(file_path):
     inputs_acc, _, _ = get_sensor_salted(file_path, normalization=False)
     inputs_var = []
     for i in range(len(inputs_acc)):
-        var = np.var(inputs_acc[i], axis=1)
-        inputs_var.append(var)
+        var = np.round(np.var(inputs_acc[i], axis=1), 3)
+        inputs_var.append(var.R_ACC_Y)
         
     scaler = MinMaxScaler()
-    inputs_var = scaler.fit_transform(inputs_var)
+    inputs_var = scaler.fit_transform(np.array(inputs_var).reshape(-1, 1))
         
     return inputs_var

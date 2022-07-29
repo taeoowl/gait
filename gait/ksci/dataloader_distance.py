@@ -23,13 +23,14 @@ class Gait_Dataset_Salted(Dataset):
         self.inputs_acc, self.inputs_gyr, self.stride_length = get_sensor_salted(file_path, bias=bias)
 #         self.inputs_spd = get_speed_salted(file_path)
         self.inputs_pst = get_position_salted(file_path, distance=True, bias=bias)
+        self.inputs_dgr = get_degree_salted(file_path, bias=bias)
         self.inputs_var = get_variance_salted(file_path)
         
     def __len__(self) :
         return len(self.inputs_acc)
     
     def __getitem__(self, idx):
-        return self.inputs_acc[idx], self.inputs_gyr[idx], self.stride_length[idx], self.inputs_pst[idx], self.inputs_var[idx]
+        return self.inputs_acc[idx], self.inputs_gyr[idx], self.stride_length[idx], self.inputs_pst[idx], self.inputs_dgr[idx]
     
     
 class Gait_Dataset_Axis_Salted(Dataset):
@@ -188,6 +189,19 @@ def get_speed_salted(file_path, bias=False):
         spd = pd.DataFrame(scipy.integrate.cumulative_trapezoid(inputs_acc[i], dx=(1/100)))
         inputs_spd.append(spd) #m/s
     return inputs_spd
+
+def get_degree_salted(file_path, bias=False):
+    bias = bias
+    _, inputs_gyr, _ = get_sensor_salted(file_path, normalization=False, bias=bias)
+    inputs_dgr = []
+    for i in range(len(inputs_gyr)):
+        dgr = pd.DataFrame(scipy.integrate.cumulative_trapezoid(inputs_gyr[i], dx=(1/100)))
+        dgr = np.array(np.sum(dgr, axis=1))
+        inputs_dgr.append(dgr)
+    scaler = MinMaxScaler()
+    inputs_dgr = scaler.fit_transform(inputs_dgr)
+    
+    return inputs_dgr
 
 def get_position_salted(file_path, distance=False, bias=False):
     bias = bias
